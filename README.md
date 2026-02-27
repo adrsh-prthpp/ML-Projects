@@ -1,403 +1,278 @@
-🏠 Bengaluru House Price Prediction (End-to-End ML Deployment)
-📌 Project Summary
-
-Built a production-style machine learning system to predict residential property prices in Bengaluru using structured real estate data.
-
-This project goes beyond model training and includes:
-
-Advanced data cleaning and feature engineering
-
-Systematic outlier detection
-
-Cross-validated model selection and hyperparameter tuning
-
-REST API backend using Flask
-
-Production deployment on AWS EC2 using Gunicorn
-
-The objective was to build a deployable ML service rather than a notebook-only model.
-
-🧹 Data Cleaning & Feature Engineering
-
-All preprocessing and modeling were performed in Jupyter Notebook using Pandas and scikit-learn.
-
-1. Dataset Loading & Preservation
-
-Imported CSV dataset into Jupyter
-
-Created a working copy to preserve raw data integrity
-
-Performed all transformations on a separate cleaned dataframe
-
-This prevents accidental mutation of source data.
-
-2. Feature Pruning
-
-Removed columns that were:
-
-Irrelevant for price prediction
-
-Highly sparse (mostly null values)
-
-Redundant or noisy
-
-This reduced dimensionality and improved model clarity.
-
-3. Missing Value Handling
-
-Identified null values using isnull().sum()
-
-Dropped rows where necessary
-
-Replaced numerical nulls using median imputation
-
-Median was chosen over mean to reduce distortion from extreme values.
-
-4. Standardizing Bedroom Information (BHK Creation)
-
-The size column contained inconsistent formats:
-
-"4 Bedroom"
-
-"4 BHK"
-
-Solution:
-
-Tokenized strings
-
-Extracted numeric component
-
-Converted to integer
-
-Created standardized bhk column
-
-df_clean['bhk'] = df_clean['size'].apply(lambda x: int(x.split(' ')[0]))
-
-This normalized structural property information across the dataset.
-
-5. Cleaning total_sqft
-
-The dataset contained:
-
-Ranges (e.g., "2100-2850")
-
-Non-numeric values
-
-Created a transformation function to:
-
-Convert valid floats
-
-Convert ranges to their average
-
-Remove invalid entries
-
-def convert_sqft_to_num(x):
-    tokens = x.split('-')
-    if len(tokens) == 2:
-        return (float(tokens[0]) + float(tokens[1])) / 2
-    try:
-        return float(x)
-    except:
-        return None
-
-This ensured consistent numerical formatting.
-
-6. Derived Feature: Price Per Square Foot
-
-Created:
-
-price_per_sqft = (price * 100000) / total_sqft
-
-This feature was critical for detecting pricing anomalies and performing outlier analysis.
-
-7. Location Dimensionality Reduction
-
-The dataset had a high number of unique location values.
-
-Steps:
-
-Counted entries per location
-
-Grouped locations with fewer than 10 data points into "other"
-
-This reduced high-cardinality categorical noise and improved model stability.
-
-8. Multi-Level Outlier Detection
-
-Applied both logical and statistical filters.
-
-A. Unrealistic Square Footage per BHK
-
-Removed properties where:
-
-total_sqft / bhk < 300
-
-These were physically unrealistic configurations.
-
-B. Price Per Sqft Statistical Filtering
-
-For each location:
-
-Computed mean price_per_sqft
-
-Computed standard deviation
-
-Removed values outside 1 standard deviation
-
-This localized anomaly detection to prevent cross-location distortion.
-
-C. Illogical BHK Pricing
-
-Removed cases where:
-
-Lower BHK properties were priced significantly higher
-
-Compared to higher BHK properties in the same location
-
-This enforced logical pricing consistency.
-
-D. Bathroom Constraint
-
-Removed properties where:
-
-bath > bhk + 2
-
-These were deemed unrealistic entries.
-
-9. Final Feature Selection
-
-Dropped intermediate columns used only for cleaning:
-
-price_per_sqft
-
-size
-
-Final model features:
-
-location
-
-total_sqft
-
-bath
-
-bhk
-
-🤖 Model Development & Selection
-1. One-Hot Encoding
-
-Converted categorical location column using:
-
-pd.get_dummies()
-
-To prevent multicollinearity (Dummy Variable Trap):
-
-Dropped one encoded column
-
-2. Train-Test Split
-
-80% Training
-
-20% Testing
-
-Used sklearn's train_test_split to maintain separation between training and evaluation data.
-
-3. Baseline Model: Linear Regression
-
-Trained Linear Regression model and evaluated using R² score.
-
-This established baseline performance.
-
-4. Cross-Validation
-
-Applied 5-fold cross-validation to:
-
-Reduce overfitting
-
-Improve generalization confidence
-
-Validate model robustness
-
-5. Model Comparison & Hyperparameter Tuning
-
-Used GridSearchCV to evaluate:
-
-Linear Regression
-
-Lasso Regression
-
-Decision Tree Regressor
-
-GridSearchCV:
-
-Explored hyperparameter combinations
-
-Compared models systematically
-
-Selected best model based on cross-validation performance
-
-This automated model selection and reduced manual bias.
-
-6. Production Prediction Function
-
-Implemented a predict_price() function that:
-
-Accepts:
-
-location
-
-total_sqft
-
-bath
-
-bhk
-
-Converts inputs into properly structured feature vectors
-
-Returns predicted house price
-
-This function serves as the backend inference engine.
-
-🌐 Backend Architecture
-
-Structured project into:
-
-/model
-/server
-/client
-
-server Module
-server.py
-
-Defines REST API endpoints
-
-Handles POST and GET requests
-
-Calls prediction function
-
-Returns JSON responses
-
-Built using Flask.
-
-util.py
-
-Contains:
-
-Model loading function
-
-Location loading function
-
-Prediction logic
-
-Model is loaded once during server startup to avoid repeated disk I/O.
-
-🚀 AWS EC2 Deployment
-1. EC2 Instance Setup
-
-Ubuntu Server (t2.micro)
-
-Security group configured to allow:
-
-Port 22 (SSH)
-
-Port 5000 (Application)
-
-Access restricted to personal IP for security
-
-2. Server Configuration
-
-SSH into instance:
-
-ssh -i key.pem ubuntu@<ec2-public-ip>
-
-Installed dependencies:
-
-Python3
-
-pip
-
-Flask
-
-NumPy
-
-Pandas
-
-scikit-learn
-
-Gunicorn
-
-3. Application Deployment
-
-Uploaded project via:
-
-Git clone from GitHub
-OR
-
-SCP file transfer
-
-4. Production Server with Gunicorn
-
-Instead of Flask development server:
-
-gunicorn server:app
-
-Gunicorn provides:
-
-WSGI production serving
-
-Concurrent request handling
-
-Improved reliability
-
-5. Production Hardening (Extended)
-
-For a more robust deployment:
-
-Configure Nginx as reverse proxy
-
-Bind Gunicorn to localhost
-
-Forward traffic through Nginx
-
-Enable HTTPS via Let's Encrypt
-
-Configure systemd service for auto-restart
-
-Set up UFW firewall rules
-
-This transforms the project from demo-level to production-grade.
-
-6. Application Access
-
-Accessible via:
-
-http://<EC2-Public-IP>:5000
-
-Or via domain if Nginx configured.
-
-📈 Technical Highlights
-
-Extensive real-world data cleaning
-
-Multi-level outlier detection
-
-Cross-validated model comparison
-
-Hyperparameter optimization with GridSearchCV
-
-RESTful API integration
-
-Cloud deployment on AWS EC2
-
-Production server setup with Gunicorn
-
-🧠 Key Takeaways
-
-Data cleaning and feature engineering significantly impact model performance
-
-Cross-validation improves reliability of evaluation
-
-Hyperparameter tuning reduces model bias
-
-Deployment requires infrastructure knowledge beyond ML
-
-Building full-stack ML systems requires both data science and DevOps skills
+<h1 align="center" style="font-weight: bold;">Bengaluru House Price Prediction API 🏠</h1>
+
+<p align="center">
+  <a href="#overview">Overview</a> •
+  <a href="#tech">Technologies</a> •
+  <a href="#structure">Project Structure</a> •
+  <a href="#pipeline">Data Pipeline</a> •
+  <a href="#training">Model Training</a> •
+  <a href="#backend">Backend</a> •
+  <a href="#routes">API Endpoints</a> •
+  <a href="#deployment">Deployment</a> •
+  <a href="#takeaways">Skills / Takeaways</a>
+</p>
+
+<p align="center">
+  <b>
+    A full ML pipeline + Flask API that predicts Bengaluru home prices using location, total_sqft, bhk, and bath.
+    Includes cleaning, outlier removal, model selection with GridSearchCV, and AWS EC2 deployment.
+  </b>
+</p>
+
+<hr>
+
+<h2 id="overview">📌 Overview</h2>
+
+<ul>
+  <li><b>Goal:</b> Predict Bengaluru house prices based on location + property features.</li>
+  <li><b>Inputs:</b> location, total_sqft, bhk, bath</li>
+  <li><b>Output:</b> estimated price</li>
+  <li><b>No frontend:</b> API-only (tested with Postman).</li>
+</ul>
+
+<hr>
+
+<h2 id="tech">💻 Technologies</h2>
+
+<ul>
+  <li>Python</li>
+  <li>Jupyter Notebook</li>
+  <li>Pandas / NumPy</li>
+  <li>scikit-learn (Linear Regression, cross-validation, GridSearchCV)</li>
+  <li>Flask (REST API)</li>
+  <li>Gunicorn (production server)</li>
+  <li>AWS EC2 (Ubuntu)</li>
+  <li>Postman (API testing)</li>
+</ul>
+
+<hr>
+
+<h2 id="structure">📂 Project Structure</h2>
+
+<pre>
+.
+├── model/
+│   ├── bangalore_home_prices_model.pickle
+│   └── columns.json
+│
+├── server/
+│   ├── server.py
+│   └── util.py
+│
+└── notebook/
+    └── data_cleaning_and_training.ipynb
+</pre>
+
+<hr>
+
+<h2 id="pipeline">🧹 Data Cleaning & Feature Engineering (Notebook)</h2>
+
+<p>
+All preprocessing was done in Jupyter Notebook. Cleaning steps were applied using new DataFrames when appropriate to
+avoid accidentally modifying the original raw data.
+</p>
+
+<h3>1) Load Dataset</h3>
+<ul>
+  <li>Import CSV into Jupyter Notebook</li>
+  <li>Create a Pandas DataFrame</li>
+  <li>Drop unnecessary columns to simplify the dataset</li>
+  <li>Create a new dataset/DataFrame for cleaning so the initial data remains unchanged</li>
+</ul>
+
+<h3>2) Handle Missing Values</h3>
+<ul>
+  <li>Identify null values</li>
+  <li>Drop rows with null values or replace nulls using the <b>median</b> of the column</li>
+</ul>
+
+<h3>3) Unify Bedroom Format (BHK)</h3>
+<ul>
+  <li>Unify entries like “4 Bedrooms” and “4 BHK” into a single numeric representation</li>
+  <li>Tokenize the <code>size</code> string</li>
+  <li>Use a lambda function to extract the first token, convert to integer, and store it in a new <code>bhk</code> column</li>
+</ul>
+
+<h3>4) Unify and Convert <code>total_sqft</code></h3>
+<ul>
+  <li>Some <code>total_sqft</code> values are not floats (strings, ranges, etc.)</li>
+  <li>Write a function to identify values that cannot be converted to float</li>
+  <li>For ranges (example: <code>"1200 - 1500"</code>), write a function that returns the <b>average</b> of the two values</li>
+  <li>Drop values that cannot be reliably converted</li>
+</ul>
+
+<h3>5) Create <code>price_per_sqft</code> (Outlier Detection)</h3>
+<ul>
+  <li>Create a new DataFrame and add <code>price_per_sqft</code> to support outlier cleaning</li>
+</ul>
+
+<h3>6) Location Cleanup</h3>
+<ul>
+  <li>Check number of unique locations and distribution</li>
+  <li>Group all locations with fewer than <b>10</b> data points into a new category called <code>other</code></li>
+</ul>
+
+<hr>
+
+<h2 id="training">📈 Outlier Removal + Model Training</h2>
+
+<h3>Outlier Removal</h3>
+<ul>
+  <li>Create new DataFrames during outlier removal to keep steps clean and reproducible</li>
+  <li>Remove unrealistic records where <code>total_sqft / bhk &lt; 300</code></li>
+  <li>For each location, compute mean and standard deviation of <code>price_per_sqft</code> and filter out points beyond that deviation</li>
+  <li>Remove cases where a home with fewer BHK has a higher price than a home with more BHK in the same area (inconsistent pricing patterns)</li>
+  <li>Remove bathroom outliers: drop properties with <b>2 or more bathrooms than BHK</b></li>
+  <li>Drop columns not needed for training (example: <code>price_per_sqft</code>, and <code>size</code> since <code>bhk</code> is used)</li>
+</ul>
+
+<h3>Feature Encoding</h3>
+<ul>
+  <li>One-hot encode <code>location</code></li>
+  <li>Drop one dummy column to avoid <b>multicollinearity</b></li>
+</ul>
+
+<h3>Train/Test Split</h3>
+<ul>
+  <li>Split dataset into X and y:
+    <ul>
+      <li><b>y (dependent):</b> price</li>
+      <li><b>X (independent):</b> all other features</li>
+    </ul>
+  </li>
+  <li>80% train, 20% test</li>
+</ul>
+
+<h3>Baseline Model</h3>
+<ul>
+  <li>Train a Linear Regression model using scikit-learn</li>
+  <li>Evaluate using model score</li>
+</ul>
+
+<h3>Cross Validation</h3>
+<ul>
+  <li>Perform 5-fold cross validation and evaluate the model across folds</li>
+</ul>
+
+<h3>GridSearchCV (Model Selection)</h3>
+<ul>
+  <li>Use GridSearchCV to compare multiple models and parameter combinations</li>
+  <li>Select the best model and best hyperparameters based on score</li>
+</ul>
+
+<h3>Prediction Function</h3>
+<ul>
+  <li>Write a final prediction function that accepts location, sqft, bhk, and bath and returns estimated price</li>
+  <li>This prediction logic is reused inside the backend API</li>
+</ul>
+
+<hr>
+
+<h2 id="backend">🧩 Backend (Flask API)</h2>
+
+<p>
+The backend exposes the trained model through REST endpoints. The backend is organized into <code>server.py</code> and <code>util.py</code>.
+</p>
+
+<h3>server/</h3>
+<ul>
+  <li><code>server.py</code>: defines API routes and handles requests/responses</li>
+  <li><code>util.py</code>: contains model loading + prediction helper functions</li>
+</ul>
+
+<h3>util.py Functions</h3>
+<ul>
+  <li><b>Prediction function</b>: same logic used during training for consistent results</li>
+  <li><b>Load artifacts</b>: loads the trained model + required metadata</li>
+  <li><b>Read dataset values</b>: returns supported locations / columns needed for prediction</li>
+</ul>
+
+<p>All endpoints were tested using Postman.</p>
+
+<hr>
+
+<h2 id="routes">📍 API Endpoints</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Route</th>
+      <th>Description</th>
+      <th>Request Body</th>
+      <th>Response</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><kbd>GET /get_location_names</kbd></td>
+      <td>Returns supported locations</td>
+      <td>None</td>
+      <td>JSON list of locations</td>
+    </tr>
+    <tr>
+      <td><kbd>POST /predict_home_price</kbd></td>
+      <td>Returns predicted house price</td>
+      <td>location, total_sqft, bhk, bath</td>
+      <td>estimated_price</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>GET /get_location_names</h3>
+
+<p><b>RESPONSE</b></p>
+<pre><code class="language-json">
+{
+  "locations": ["Indira Nagar", "Whitefield", "Electronic City", "other"]
+}
+</code></pre>
+
+<h3>POST /predict_home_price</h3>
+
+<p><b>REQUEST</b></p>
+<pre><code class="language-json">
+{
+  "location": "Indira Nagar",
+  "total_sqft": 1200,
+  "bhk": 2,
+  "bath": 2
+}
+</code></pre>
+
+<p><b>RESPONSE</b></p>
+<pre><code class="language-json">
+{
+  "estimated_price": 85.6
+}
+</code></pre>
+
+<hr>
+
+<h2 id="deployment">☁️ Deployment (AWS EC2)</h2>
+
+<ul>
+  <li>Create and launch an Ubuntu EC2 instance with security permissions allowing port <b>5000</b> from your personal IP address</li>
+  <li>Connect to the EC2 instance via SSH using your terminal</li>
+  <li>Upload the project folder to the EC2 instance</li>
+  <li>Install Python dependencies and <b>gunicorn</b> on the EC2 instance</li>
+  <li>Run the Flask server (commonly via gunicorn)</li>
+  <li>Use the EC2 public URL/IP to access the API</li>
+</ul>
+
+<hr>
+
+<h2 id="takeaways">🎯 Skills Learned & Key Takeaways</h2>
+
+<ul>
+  <li><b>Data Cleaning:</b> Cleaned real-world messy data (missing values, mixed formats, range parsing).</li>
+  <li><b>Feature Engineering:</b> Standardized text-based fields (like <code>size</code>) into numeric model-ready features (<code>bhk</code>).</li>
+  <li><b>Outlier Detection:</b> Applied both logical rules (sqft/BHK, bathroom constraints) and statistical filtering (mean + std by location).</li>
+  <li><b>Model Validation:</b> Used train/test split and 5-fold cross validation to measure generalization.</li>
+  <li><b>Hyperparameter Tuning:</b> Used GridSearchCV to compare models and select best hyperparameters.</li>
+  <li><b>Productionizing ML:</b> Saved trained artifacts and reused them consistently for inference.</li>
+  <li><b>API Development:</b> Built and tested REST endpoints with Flask and Postman.</li>
+  <li><b>Cloud Deployment:</b> Deployed a production-style backend using Gunicorn on AWS EC2.</li>
+  <li><b>End-to-End Workflow:</b> Completed the full path from raw dataset → trained model → live prediction API.</li>
+</ul>
+
+<hr>
